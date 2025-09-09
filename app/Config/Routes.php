@@ -24,12 +24,16 @@ $routes->get('products', 'ProductController::index');
 $routes->get('addProduct', 'ProductController::new');
 $routes->post('products/create', 'ProductController::create');
 $routes->get('products/edit/(:num)', 'ProductController::edit/$1');
+$routes->get('products/transaction/(:num)', 'ProductController::productDetail/$1');
 $routes->put('products/update/(:num)', 'ProductController::update/$1');
 $routes->delete('products/delete/(:num)', 'ProductController::delete/$1');
 
 
 // transaction
-
+$routes->get('transactions', 'TransactionController::index');
+$routes->put('transactions/create/(:num)', 'TransactionController::create/$1');
+$routes->get('transactions/show/(:num)', 'TransactionController::show/$1');
+$routes->delete('transactions/delete/(:num)', 'TransactionController::delete/$1');
 
 
 // });

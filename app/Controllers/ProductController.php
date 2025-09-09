@@ -74,6 +74,22 @@ class ProductController extends BaseController
         ];
         return view('page/editProduct', $data);
     }
+    public function productDetail($id)
+    {
+        $product = $this->productModel->find($id);
+        if (!$product) {
+            throw new \CodeIgniter\Exceptions\PageNotFoundException('Produk tidak ditemukan.');
+        }
+        // var_dump($product);
+        // exit;
+
+        $data = [
+            'title'   => 'ORDER ' . $product['nama_produk'],
+            'product' => $product,
+            'validation' => \Config\Services::validation()
+        ];
+        return view('page/addTransaction', $data);
+    }
 
     public function update($id)
     {

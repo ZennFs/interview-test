@@ -7,16 +7,16 @@
 <h1><?= esc($title) ?></h1>
 
 <?php if (session()->getFlashdata('message')) : ?>
-    <div class="alert"><?= session()->getFlashdata('message'); ?></div>
+    <div class=""><?= session()->getFlashdata('message'); ?></div>
 <?php endif; ?>
 
 <a href="/addProduct">Tambah Produk Baru</a>
 <hr>
 
-<table class="table-auto">
+<table class="table-auto ">
     <thead class="p-4">
         <tr>
-            <th class="ml-3">Nama Produk</th>
+            <th rowspan="2">Nama Produk</th>
             <th class="ml-3">Kategori</th>
             <th>Harga</th>
             <th>Satuan</th>
@@ -42,6 +42,7 @@
                         <input type="hidden" name="_method" value="DELETE">
                         <button type="submit" onclick="return confirm('Apakah Anda yakin ingin menghapus produk ini?');">Hapus</button>
                     </form>
+                    <a href="/products/transaction/<?= esc($product['id'], 'url') ?>" class="action-btn">Transaction</a>
                 </td>
             </tr>
         <?php endforeach; ?>

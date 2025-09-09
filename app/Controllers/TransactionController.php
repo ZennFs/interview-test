@@ -23,67 +23,108 @@ class TransactionController extends BaseController
     }
 
 
-    public function create()
+    public function index()
     {
-        $data = $this->request->getJSON(true);
+        $data = [
+            'title'    => 'Riwayat Transaksi',
+            'transactions' => $this->transactionModel
+                ->select('transactions.*, users.username as cashier_name')
+                ->join('users', 'users.id = transactions.user_id', 'left')
+                ->orderBy('transactions.created_at', 'DESC')
+                ->findAll()
+        ];
+        return view('page/transaction', $data);
+    }
 
-        $items = $data['items'];
-        $grandTotal = 0;
-        $detailItems = [];
+    public function create($productId)
+    {
+        $product = $this->productModel->find($productId);
+        if (!$product) {
+            return redirect()->back()->with('error', 'Produk tidak ditemukan.');
+        }
+
+        $rules = [
+            'qty'           => 'required|numeric|greater_than[0]',
+            'customer_name' => 'required|min_length[3]',
+            'harga_dibayar' => 'required|numeric',
+        ];
+        if ($product['jenis_formula'] === 'area') {
+            $rules['panjang'] = 'required|numeric|greater_than[0]';
+            $rules['lebar']   = 'required|numeric|greater_than[0]';
+        }
+
+        if (!$this->validate($rules)) {
+            return redirect()->back()->withInput()->with('errors', $this->validator->getErrors());
+        }
+
+        $subtotal = 0;
+        if ($product['jenis_formula'] === 'unit') {
+            $subtotal = $this->request->getPost('qty') * $product['harga'];
+        } else {
+            $subtotal = $this->request->getPost('panjang') * $this->request->getPost('lebar') * $product['harga'];
+        }
 
         $this->db->transStart();
-
-        foreach ($items as $item) {
-            $product = $this->productModel->find($item['product_id']);
-
-            if (!$product) {
-                $this->db->transRollback();
-                return $this->response
-                    ->setStatusCode(404)
-                    ->setJSON(['status' => 'error', 'message' => 'Produk dengan ID ' . $item['product_id'] . ' tidak ditemukan.']);
-            }
-
-            $subtotal = 0;
-            if ($product['jenis_formula'] === 'unit') {
-                $subtotal = $item['qty'] * $product['harga'];
-            } elseif ($product['jenis_formula'] === 'area') {
-                $subtotal = $item['panjang'] * $item['lebar'] * $product['harga'];
-            }
-            $grandTotal += $subtotal;
-            $detailItems[] = [
-                'product_id'    => $item['product_id'],
-                'qty'           => $item['qty'],
-                'panjang'       => $item['panjang'] ?? null,
-                'lebar'         => $item['lebar'] ?? null,
-                'price_at_sale' => $product['harga'],
-                'subtotal'      => $subtotal,
-            ];
-        }
-
-        $transactionData = [
+        $this->transactionModel->insert([
             'user_id'       => 1,
-            'customer'      => $data['customer_name'],
-            'total_harga'   => $grandTotal,
-            'harga_dibayar' => $data['harga_dibayar'],
-        ];
-        $this->transactionModel->insert($transactionData);
-        $transactionId = $this->transactionModel->getInsertID();
+            'customer'      => $this->request->getPost('customer_name'),
+            'total_harga'   => $subtotal,
+            'harga_dibayar' => $this->request->getPost('harga_dibayar'),
+        ]);
 
-        foreach ($detailItems as &$detail) {
-            $detail['transaction_id'] = $transactionId;
-        }
-        $this->transactionDetailModel->insertBatch($detailItems);
+        $transactionId = $this->transactionModel->getInsertID();
+        $this->transactionDetailModel->insert([
+            'transaction_id' => $transactionId,
+            'product_id'    => $product['id'],
+            'qty'           => $this->request->getPost('qty'),
+            'panjang'       => $this->request->getPost('panjang') ?? null,
+            'lebar'         => $this->request->getPost('lebar') ?? null,
+            'price_at_sale' => $product['harga'],
+            'subtotal'      => $subtotal,
+        ]);
 
         $this->db->transComplete();
 
         if ($this->db->transStatus() === false) {
-            return $this->response
-                ->setStatusCode(500)
-                ->setJSON(['status' => 'error', 'message' => 'Gagal menyimpan transaksi.']);
+            return redirect()->back()->withInput()->with('error', 'Gagal menyimpan transaksi.');
+        }
+        return redirect()->to('/transactions')->with('message', 'Transaksi berhasil disimpan.');
+    }
+    public function show($id)
+    {
+        $transaction = $this->transactionModel
+            ->select('transactions.*, users.username as cashier_name')
+            ->join('users', 'users.id = transactions.user_id', 'left')
+            ->find($id);
+
+        if (!$transaction) {
+            throw new \CodeIgniter\Exceptions\PageNotFoundException('Transaksi tidak ditemukan.');
         }
 
-        return $this->response
-            ->setStatusCode(201)
-            ->setJSON(['status' => 'success', 'message' => 'Transaksi berhasil dibuat.', 'transaction_id' => $transactionId]);
+        $details = $this->transactionDetailModel
+            ->select('transaction_details.*, products.nama_produk')
+            ->join('products', 'products.id = transaction_details.product_id', 'left')
+            ->where('transaction_id', $id)
+            ->findAll();
+
+        $data = [
+            'title'       => 'Detail Transaksi: ' . $transaction['id'],
+            'transaction' => $transaction,
+            'details'     => $details
+        ];
+
+        return view('page/transactionDetail', $data);
+    }
+    public function delete($id)
+    {
+        $transaction = $this->transactionModel->find($id);
+        if (!$transaction) {
+            throw new \CodeIgniter\Exceptions\PageNotFoundException('Transaksi tidak ditemukan.');
+        }
+
+        $this->transactionModel->delete($id);
+
+        session()->setFlashdata('message', 'Transaksi berhasil dihapus.');
+        return redirect()->to('/transactions');
     }
 }
